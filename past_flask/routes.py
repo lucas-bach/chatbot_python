@@ -1,7 +1,9 @@
 from flask import Blueprint,request,jsonify
-from models import Task
+from models import Task,User
 from extensions import db
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import create_access_token,jwt_required,get_jwt_identity
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import jsonify
 
 task_bp = Blueprint('task_bp',__name__,)
 
@@ -54,3 +56,26 @@ def delete_task(id):
     db.session.delete(task)
     db.session.commit()
     return '', 204
+
+@task_bp.route('/register',methods=['POST'])
+def register():
+    data = request.get_json()
+    if User.query.filter_by(username=data['username']).first():
+        return jsonify({"error": "User already exists"}), 400
+
+    new_user = User(username=data['username'])
+    new_user.set_password(data['password'])
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify(new_user.to_dict()), 201
+
+
+@task_bp.route('/login',methods=['POST'])
+def login():
+    data = request.get_json()
+    user = User.query.filter_by(username=data['username']).first()
+    if user is None or not user.check_password(data['password']):
+        return jsonify({"error": "Invalid usrname or password"}), 401
+    
+    access_token = create_access_token(identity=user.id)
+    return jsonify(access_token=access_token), 200
